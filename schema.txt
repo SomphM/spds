@@ -1,0 +1,127 @@
+USE [SPDS]
+GO
+
+/****** Object:  Table [dbo].[Alerts]    Script Date: 10/16/2026 9:12:57 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Alerts](
+	[Id] [bigint] IDENTITY(1,1) NOT NULL,
+	[AlertTime] [datetime2](0) NOT NULL,
+	[Level] [varchar](10) NOT NULL,
+	[Message] [nvarchar](300) NOT NULL,
+ CONSTRAINT [PK_Alerts] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[Alerts] ADD  CONSTRAINT [DF_Alerts_AlertTime]  DEFAULT (sysutcdatetime()) FOR [AlertTime]
+GO
+
+ALTER TABLE [dbo].[Alerts]  WITH CHECK ADD  CONSTRAINT [CK_Alerts_Level] CHECK  (([Level]='crit' OR [Level]='warn' OR [Level]='info'))
+GO
+
+ALTER TABLE [dbo].[Alerts] CHECK CONSTRAINT [CK_Alerts_Level]
+GO
+
+
+--
+USE [SPDS]
+GO
+
+/****** Object:  Table [dbo].[Transactions]    Script Date: 10/16/2026 9:14:10 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Transactions](
+	[Id] [bigint] IDENTITY(1,1) NOT NULL,
+	[TxnTime] [datetime2](0) NOT NULL,
+	[CustomerPhone] [varchar](20) NOT NULL,
+	[PackageName] [varchar](100) NOT NULL,
+	[Channel] [varchar](30) NOT NULL,
+	[Status] [varchar](20) NOT NULL,
+	[FailReason] [varchar](200) NULL,
+	[AutoRenewOff] [bit] NOT NULL,
+	[CreatedAt] [datetime2](0) NOT NULL,
+	[isFixed] [int] NULL,
+	[isUser] [int] NULL,
+	[HandleStatus] [varchar](20) NULL,
+	[HandledByUserId] [int] NULL,
+	[HandledAt] [datetime2](0) NULL,
+ CONSTRAINT [PK_Transactions] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[Transactions] ADD  CONSTRAINT [DF_Transactions_TxnTime]  DEFAULT (sysutcdatetime()) FOR [TxnTime]
+GO
+
+ALTER TABLE [dbo].[Transactions] ADD  CONSTRAINT [DF_Transactions_AutoRenewOff]  DEFAULT ((0)) FOR [AutoRenewOff]
+GO
+
+ALTER TABLE [dbo].[Transactions] ADD  CONSTRAINT [DF_Transactions_CreatedAt]  DEFAULT (sysutcdatetime()) FOR [CreatedAt]
+GO
+
+ALTER TABLE [dbo].[Transactions]  WITH CHECK ADD  CONSTRAINT [FK_Transactions_HandledByUserId] FOREIGN KEY([HandledByUserId])
+REFERENCES [dbo].[Users] ([Id])
+GO
+
+ALTER TABLE [dbo].[Transactions] CHECK CONSTRAINT [FK_Transactions_HandledByUserId]
+GO
+
+ALTER TABLE [dbo].[Transactions]  WITH CHECK ADD  CONSTRAINT [CK_Transactions_HandleStatus] CHECK  (([HandleStatus]='closing' OR [HandleStatus]='fixed' OR [HandleStatus]='pending'))
+GO
+
+ALTER TABLE [dbo].[Transactions] CHECK CONSTRAINT [CK_Transactions_HandleStatus]
+GO
+
+ALTER TABLE [dbo].[Transactions]  WITH CHECK ADD  CONSTRAINT [CK_Transactions_Status] CHECK  (([Status]='failed' OR [Status]='checking' OR [Status]='success'))
+GO
+
+ALTER TABLE [dbo].[Transactions] CHECK CONSTRAINT [CK_Transactions_Status]
+GO
+
+
+--
+USE [SPDS]
+GO
+
+/****** Object:  Table [dbo].[Users]    Script Date: 10/16/2026 9:14:30 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Users](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[Username] [varchar](50) NOT NULL,
+	[DisplayName] [varchar](100) NULL,
+	[PasswordHash] [varchar](255) NOT NULL,
+	[PasswordSalt] [varchar](255) NOT NULL,
+	[CreatedAt] [datetime2](0) NOT NULL,
+ CONSTRAINT [PK_Users] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY],
+ CONSTRAINT [UQ_Users_Username] UNIQUE NONCLUSTERED 
+(
+	[Username] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[Users] ADD  CONSTRAINT [DF_Users_CreatedAt]  DEFAULT (sysutcdatetime()) FOR [CreatedAt]
+GO
+
+

@@ -1,0 +1,33 @@
+﻿import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { JSDOM } from 'jsdom';
+import { readApiResponse,throttleMessage } from '../public/api-response.js';
+
+test('SOC dashboard renders renewal signals and drills into failures and renewal flags',async()=>{
+  const dom=new JSDOM(await readFile(new URL('../public/index.html',import.meta.url),'utf8'),{url:'http://localhost',runScripts:'outside-only'});
+  const {window}=dom;for(const key of ['document','NodeFilter','localStorage'])globalThis[key]=window[key];
+  const {t,locale,initializePreferences}=await import('../public/i18n.js');
+  Object.assign(window,{t,locale,initializePreferences,readApiResponse,throttleMessage});
+  window.document.documentElement.dataset.theme='light';window.HTMLElement.prototype.scrollIntoView=()=>{};
+  const requests=[];
+  const summary={total:10,success:6,failed:3,checking:1,unresolved:2,autoRenewOff:4,failedAutoRenewOff:2,successRate:60,alertCount:0,alerts:[],period:{from:'2026-10-16',to:'2026-10-16'},updatedAt:'2026-10-16T03:00:00Z',channels:[],packages:[],failures:[{name:'Timeout',count:3}],trend:[]};
+  window.fetch=async url=>{requests.push(url);return Response.json(url.includes('/me')?{user:{name:'Operator'},mode:'sqlserver'}:url.includes('/options')?{channels:['USSD']}:url.includes('/dashboard')?summary:{items:[{Id:1,TxnTime:'2026-10-16T03:00:00Z',Status:'success',HandleStatus:'pending'},{Id:2,TxnTime:'2026-10-16T03:00:00Z',Status:'failed',HandleStatus:'pending'},{Id:3,TxnTime:'2026-10-16T03:00:00Z',Status:'failed',FailReason:'balance is not enough',HandleStatus:'pending'}],total:3});};
+  const source=(await readFile(new URL('../public/app.js',import.meta.url),'utf8')).replace(/^import .*;\r?\n/gm,'');
+  window.eval(source);await new Promise(resolve=>setTimeout(resolve,30));
+  const transactionRows=window.document.querySelectorAll('#rows tr');
+  assert.equal(transactionRows[0].cells[5].textContent,'success');
+  assert.equal(transactionRows[1].cells[5].textContent,'pending');
+  assert.equal(transactionRows[2].cells[4].textContent,'failed');
+  assert.equal(transactionRows[2].cells[5].textContent,'success');
+  assert.equal(window.document.getElementById('renew-off-total').textContent,'4');
+  assert.equal(window.document.getElementById('renew-on').textContent,'6');assert.equal(window.document.getElementById('renew-failed').textContent,'2');
+  assert.equal(window.document.getElementById('unresolved-total').textContent,'2');
+  window.document.querySelector('[data-renew-failures]').click();await new Promise(resolve=>setTimeout(resolve,10));
+  let last=new URL(requests.filter(r=>r.includes('/transactions?')).at(-1),'http://localhost');
+  assert.equal(last.searchParams.get('autoRenew'),'off');assert.equal(last.searchParams.get('status'),'failed');
+  window.document.querySelector('#failures button').click();await new Promise(resolve=>setTimeout(resolve,10));
+  last=new URL(requests.filter(r=>r.includes('/transactions?')).at(-1),'http://localhost');
+  assert.equal(last.searchParams.get('failureReason'),'Timeout');assert.equal(last.searchParams.get('autoRenew'),'off');
+  dom.window.close();for(const key of ['document','NodeFilter','localStorage'])delete globalThis[key];
+});

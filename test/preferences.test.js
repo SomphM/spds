@@ -1,0 +1,32 @@
+﻿import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { JSDOM } from 'jsdom';
+
+test('English/Lao switching preserves API values, form input, and saved preferences',async()=>{
+  const html=await readFile(new URL('../public/index.html',import.meta.url),'utf8');
+  const dom=new JSDOM(html,{url:'http://localhost',runScripts:'outside-only'});
+  const {window}=dom;
+  for(const key of ['document','NodeFilter','localStorage'])globalThis[key]=window[key];
+  window.matchMedia=()=>({matches:true});
+  window.eval(await readFile(new URL('../public/preferences.js',import.meta.url),'utf8'));
+  assert.equal(window.document.documentElement.dataset.theme,'dark');
+  const { initializePreferences,t }=await import('../public/i18n.js');
+  let changes=0;initializePreferences(()=>changes++);
+  const language=window.document.getElementById('language');
+  const status=window.document.querySelector('select[name=status]');
+  status.value='failed';window.document.querySelector('input[name=search]').value='123';
+  const values=[...status.options].map(o=>o.value);
+  language.value='lo';language.dispatchEvent(new window.Event('change'));
+  assert.equal(window.document.documentElement.lang,'lo');
+  assert.equal(window.localStorage.getItem('tplus-language'),'lo');
+  assert.equal(t('failed'),'ບໍ່ສຳເລັດ');
+  assert.deepEqual([...status.options].map(o=>o.value),values);
+  assert.equal(status.value,'failed');assert.equal(window.document.querySelector('input[name=search]').value,'123');
+  assert.equal(window.document.querySelector('input[name=search]').placeholder,'ເບີໂທ ຫຼື ແພັກເກັດ…');
+  language.value='en';language.dispatchEvent(new window.Event('change'));
+  assert.equal(status.selectedOptions[0].textContent,'failed');assert.equal(t('failed'),'failed');assert.equal(changes,2);
+  const theme=window.document.getElementById('theme');theme.value='light';theme.dispatchEvent(new window.Event('change'));
+  assert.equal(window.document.documentElement.dataset.theme,'light');assert.equal(window.localStorage.getItem('tplus-theme'),'light');
+  dom.window.close();for(const key of ['document','NodeFilter','localStorage'])delete globalThis[key];
+});
