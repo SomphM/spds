@@ -40,6 +40,12 @@ export async function createApp({ demo = false, store } = {}) {
   app.post('/api/logout',(req,res)=>{sessions.delete(req.token);res.clearCookie('tplus_session');res.json({ok:true});});
   app.get('/api/options',async(req,res)=>res.json({channels:await store.options()}));
   app.get('/api/dashboard',async(req,res)=>{let f;try{f=filters(req.query);}catch(e){return res.status(400).json({error:e.message});} const [summary,alerts]=await Promise.all([store.summary(f),store.alerts(f)]);res.json({...summary,alerts:alerts.items,alertCount:alerts.total,period:{from:f.from,to:f.to,dateField:'CreatedAt',timeZone:'database'},updatedAt:new Date()});});
+  app.get('/api/resolutions',async(req,res)=>{
+    let f;try{f=filters(req.query);}catch(error){return res.status(400).json({error:error.message});}
+    const page=Number(req.query.page||1),pageSize=25;
+    if(!Number.isSafeInteger(page)||page<1||page>Math.floor(Number.MAX_SAFE_INTEGER/pageSize))return res.status(400).json({error:'Invalid pagination'});
+    res.json({...await store.resolutions(f,page,pageSize),period:{from:f.from,to:f.to},updatedAt:new Date()});
+  });
   app.get('/api/transactions',async(req,res)=>{
     let f;try{f=filters(req.query);}catch(e){return res.status(400).json({error:e.message});}
     const page=Number(req.query.page || 1),pageSize=Number(req.query.pageSize || 25);

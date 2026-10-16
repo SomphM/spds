@@ -71,6 +71,31 @@ export async function createStore(demo) {
         ORDER BY CreatedAt DESC,Id DESC`);
       return {items:result.recordset,total:Number(result.recordset[0]?.Total||0)};
     },
+    async resolutions(f,page=1,pageSize=25) {
+      if(demo){
+        const cohort=rows.filter(row=>matches(row,{from:f.from,to:f.to})&&row.Status==='failed');
+        const fixed=cohort.filter(row=>row.HandleStatus==='fixed').sort((a,b)=>new Date(b.HandledAt||0)-new Date(a.HandledAt||0)||Number(b.Id)-Number(a.Id));
+        const groups=new Map();
+        for(const row of fixed){const key=row.HandledByUserId??'unassigned';const group=groups.get(key)||{UserId:row.HandledByUserId,DisplayName:row.HandledByUserId?'Demo operator':'Unassigned',Fixed:0};group.Fixed++;groups.set(key,group);}
+        return {totalFailed:cohort.length,fixed:fixed.length,needsAttention:cohort.filter(row=>row.HandleStatus!=='fixed'&&row.HandleStatus!=='closing'&&(row.FailReason||'').trim().toLowerCase()!=='balance is not enough').length,operators:[...groups.values()].sort((a,b)=>b.Fixed-a.Fixed),items:fixed.slice((page-1)*pageSize,page*pageSize).map(row=>({...row,HandledByDisplayName:row.HandledByUserId?'Demo operator':'Unassigned'})),page,pageSize};
+      }
+      const {start,end}=dateBounds(f);
+      const request=(await database()).request().input('start',sql.DateTime2,start).input('end',sql.DateTime2,end).input('first',sql.BigInt,(page-1)*pageSize+1).input('last',sql.BigInt,page*pageSize);
+      const result=await request.query(`
+        SELECT t.Id,t.CreatedAt,t.CustomerPhone,t.PackageName,t.FailReason,t.HandleStatus,t.HandledByUserId,t.HandledAt,
+          COALESCE(NULLIF(LTRIM(RTRIM(u.DisplayName)),''),u.Username,'Unassigned') AS HandledByDisplayName
+        INTO #Resolution FROM dbo.Transactions t LEFT JOIN dbo.Users u ON u.Id=t.HandledByUserId
+        WHERE t.Status='failed' AND t.CreatedAt>=@start AND t.CreatedAt<@end;
+        SELECT COUNT_BIG(*) AS totalFailed,
+          COALESCE(SUM(CONVERT(bigint,CASE WHEN HandleStatus='fixed' THEN 1 ELSE 0 END)),0) AS fixed,
+          COALESCE(SUM(CONVERT(bigint,CASE WHEN COALESCE(HandleStatus,'pending') NOT IN ('fixed','closing') AND LOWER(LTRIM(RTRIM(COALESCE(FailReason,''))))<>'balance is not enough' THEN 1 ELSE 0 END)),0) AS needsAttention FROM #Resolution;
+        SELECT HandledByUserId AS UserId,HandledByDisplayName AS DisplayName,COUNT_BIG(*) AS Fixed
+          FROM #Resolution WHERE HandleStatus='fixed' GROUP BY HandledByUserId,HandledByDisplayName ORDER BY Fixed DESC,HandledByUserId;
+        WITH Paged AS (SELECT *,ROW_NUMBER() OVER(ORDER BY HandledAt DESC,Id DESC) AS RowNumber FROM #Resolution WHERE HandleStatus='fixed')
+        SELECT Id,CreatedAt,CustomerPhone,PackageName,FailReason,HandledByDisplayName,HandledAt FROM Paged WHERE RowNumber BETWEEN @first AND @last ORDER BY RowNumber;
+        DROP TABLE #Resolution;`);
+      return {...Object.fromEntries(Object.entries(result.recordsets[0][0]).map(([key,value])=>[key,Number(value)])),operators:result.recordsets[1].map(row=>({...row,Fixed:Number(row.Fixed)})),items:result.recordsets[2],page,pageSize};
+    },
     async transaction(id) {
       if(demo)return rows.find(row=>String(row.Id)===id);
       return (await (await database()).request().input('id',sql.BigInt,id).query(`

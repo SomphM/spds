@@ -100,3 +100,21 @@ test('marking fixed enables auto-renew on that purchase; pending preserves the f
   await store.update('1','pending',7);assert.equal(record.AutoRenewOff,true);
   assert.equal(await store.update('99999999','fixed',7),false);
 });
+
+
+test('resolution report counts actual failed fixes and attributes the last handler',async()=>{
+  const {createStore}=await import('../src/store.js');const store=await createStore(true);
+  const failed=await store.transaction('1');Object.assign(failed,{Status:'failed',CreatedAt:new Date('2026-10-16T12:00:00Z'),HandleStatus:'pending'});
+  const success=await store.transaction('2');Object.assign(success,{Status:'success',CreatedAt:new Date('2026-10-16T12:00:00Z')});
+  await store.update('1','fixed',7);await store.update('2','fixed',7);
+  const f=filters({from:'2026-10-16',to:'2026-10-16'}),report=await store.resolutions(f);
+  assert.equal(report.fixed,report.operators.reduce((total,row)=>total+row.Fixed,0));
+  assert.ok(report.items.some(row=>String(row.Id)==='1'&&row.HandledByUserId===7));
+  assert.ok(!report.items.some(row=>String(row.Id)==='2'));
+  assert.ok(report.operators.some(row=>row.UserId===7&&row.Fixed>=1));
+  const empty=await store.resolutions(filters({from:'2000-01-01',to:'2000-01-01'}));assert.equal(empty.fixed,0);assert.equal(empty.totalFailed,0);
+});
+test('resolution endpoint validates dates and pagination',async t=>{
+  const api=await serve(t,{demo:true});assert.equal((await api('/resolutions?page=0')).status,400);assert.equal((await api('/resolutions?from=2026-02-30')).status,400);
+  const result=await api('/resolutions?from=2000-01-01&to=2000-01-01');assert.equal(result.status,200);assert.equal(result.data.fixed,0);assert.deepEqual(result.data.operators,[]);
+});

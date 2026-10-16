@@ -107,3 +107,10 @@ When an operator saves Handling status as `fixed`, the same transaction update s
 The Purchase transactions ID / CREATED AT column displays `CreatedAt` exactly as stored in SQL Server, without a timezone offset. Purchase date filters, metrics, and ordering use `CreatedAt`.
 
 Dashboard date filtering, daily aggregates, transaction ordering, and System alerts now use `CreatedAt` as stored in the database. A selected date includes midnight through just before the next database midnight, with no timezone offset applied to those bounds. The default date is today in Laos.
+
+
+## Resolution dashboard
+
+Open `/resolutions.html` or choose Resolution dashboard in the sidebar. It shares the existing login session, theme, and English/Lao preferences. The report shows all failed purchases created in the selected database-date range, the number currently marked fixed, fixed/all-failed rate, and actionable unresolved failures (excluding insufficient balance). Operator totals use DisplayName with username fallback, grouped by user ID. Missing handlers are shown as Unassigned.
+
+The fixed-purchase table is ordered by HandledAt and paginated at 25 records. A purchase is counted as fixed only when its stored HandleStatus is fixed; automatic success display labels do not count. This is a current-state report by purchase creation date, not a history of every handling action or a count of fixes performed during the date range. Data is read through the authenticated `GET /api/resolutions?from=YYYY-MM-DD&to=YYYY-MM-DD&page=1` endpoint.
